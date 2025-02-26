@@ -3,7 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
-import { DataSource, In } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { Teacher } from '../src/modules/teachers/teachers.entity';
 import { Student } from '../src/modules/students/students.entity';
 
@@ -12,9 +12,9 @@ async function getDataSource() {
     type: 'mysql',
     host: 'localhost',
     port: 3306,
-    username: 'root',
-    password: 'root',
-    database: 'edu_backend',
+    username: process.env.DB_USERNAME || 'root',
+    password: process.env.DB_PASSWORD || 'root',
+    database: process.env.DB_NAME || 'edu_backend',
     entities: [Student, Teacher],
     synchronize: true, // Set to false in production
   });
