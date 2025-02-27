@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Teacher } from './teachers.entity';
 import { Student } from '../students/students.entity';
+import { extractMentionedEmails } from '../../utils/extractMentionedEmails';
 
 @Injectable()
 export class TeachersService {
@@ -131,8 +132,7 @@ export class TeachersService {
     teacherEmail: string,
     notificationText: string,
   ) {
-    const listOfMentionedStudents =
-      notificationText.match(/@[\w-.]+@([\w-]+\.)+[\w-]{2,4}/g) || [];
+    const listOfMentionedStudents = extractMentionedEmails(notificationText);
 
     let query = `
     SELECT s.*
@@ -148,7 +148,7 @@ export class TeachersService {
           UNION
           SELECT s.*
           FROM student s
-          WHERE s.email IN (${listOfMentionedStudents.map((email: string) => `'${email.substring(1)}'`).join(', ')})
+          WHERE s.email IN (${listOfMentionedStudents.join(', ')})
           AND s.isSuspended = false
       `;
     }

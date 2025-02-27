@@ -15,7 +15,6 @@ import { TeachersService } from './teachers.service';
 import { Teacher } from './teachers.entity';
 import { AssignStudentsDto } from './DTO/assign-students.dto';
 import { StudentsService } from '../students/students.service';
-import { Student } from '../students/students.entity';
 import { RetrieveForNotificationsDto } from './DTO/retrieve-for-notifications.dto';
 import { SuspendStudentDto } from './DTO/suspend-student.dto';
 import { EmailValidationPipe } from './DTO/email-validation.pipe';
