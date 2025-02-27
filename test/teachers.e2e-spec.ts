@@ -23,10 +23,18 @@ async function getDataSource() {
 }
 
 async function clearDatabase(dataSource: DataSource) {
-  await dataSource.query('DELETE FROM student');
-  await dataSource.query('DELETE FROM teacher');
-  await dataSource.query('ALTER TABLE student AUTO_INCREMENT = 1');
-  await dataSource.query('ALTER TABLE teacher AUTO_INCREMENT = 1');
+  const teacherMeta = dataSource.getMetadata(Teacher);
+  const studentMeta = dataSource.getMetadata(Student);
+
+  await dataSource.query(`DELETE FROM ${studentMeta.tableName}`);
+  await dataSource.query(`DELETE FROM ${teacherMeta.tableName}`);
+
+  await dataSource.query(
+    `ALTER TABLE ${studentMeta.tableName} AUTO_INCREMENT = 1`,
+  );
+  await dataSource.query(
+    `ALTER TABLE  ${teacherMeta.tableName} AUTO_INCREMENT = 1`,
+  );
 }
 
 async function populateFakeData() {
@@ -83,19 +91,24 @@ async function populateFakeData() {
 
 describe('TeacherController (e2e)', () => {
   let app: INestApplication<App>;
-
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
+  });
 
+  beforeEach(async () => {
     await populateFakeData();
   });
 
   afterAll(async () => {
+    const dataSource = await getDataSource();
+    await clearDatabase(dataSource);
+    await dataSource.destroy();
+
     await app.close();
   });
 
@@ -120,6 +133,37 @@ describe('TeacherController (e2e)', () => {
     expect(studentEmails).toContain('student_3@example.com');
     await dataSource.destroy();
   });
+
+  it('should double register students to teacher', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/register')
+      .send({
+        teacher: 'teacher_1@example.com',
+        students: ['student_1@example.com', 'student_3@example.com'],
+      });
+
+    expect(res.status).toBe(204);
+
+    const res1 = await request(app.getHttpServer())
+      .post('/api/register')
+      .send({
+        teacher: 'teacher_1@example.com',
+        students: ['student_1@example.com', 'student_3@example.com'],
+      });
+
+    expect(res1.status).toBe(204);
+    // test data in relation table
+    const dataSource = await getDataSource();
+    const teachers = await dataSource.manager.find(Teacher, {
+      where: { email: 'teacher_1@example.com' },
+      relations: ['students'],
+    });
+    const studentEmails = teachers[0].students.map((s: Student) => s.email);
+    expect(studentEmails).toContain('student_1@example.com');
+    expect(studentEmails).toContain('student_3@example.com');
+    await dataSource.destroy();
+  });
+
   //   2. Test common students api
   it('should get common students', async () => {
     const res1 = await request(app.getHttpServer())
@@ -145,7 +189,6 @@ describe('TeacherController (e2e)', () => {
     );
 
     expect(res.status).toBe(200);
-    console.log(res.body);
     expect(res.body).toEqual({ students: ['student_1@example.com'] });
   });
 
@@ -229,6 +272,31 @@ describe('TeacherController (e2e)', () => {
       recipients: ['student_1@example.com'],
     });
   });
+
+  it('check for duplicate emails', async () => {
+    const res0 = await request(app.getHttpServer())
+      .post('/api/register')
+      .send({
+        teacher: 'teacher_1@example.com',
+        students: ['student_1@example.com'],
+      });
+
+    expect(res0.status).toBe(204);
+
+    const res = await request(app.getHttpServer())
+      .post('/api/retrievefornotifications')
+      .send({
+        teacher: 'teacher_1@example.com',
+        notification:
+          'Hello @student_1@example.com, @student_3@example.com, and @student_1@example.com, and @student_3@example.com',
+      })
+      .expect(200);
+
+    expect(res.body).toEqual({
+      recipients: ['student_1@example.com'],
+    });
+  });
+
   it('should not retrieve notifications for fake mentions', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/retrievefornotifications')
